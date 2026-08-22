@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Wechat AI Assistant</string>
+    <string name="xposed_desc">在微信会话中调用 AI 辅助回复</string>
+    <string name="menu_chats">聊天记录</string>
+    <string name="menu_chats_hint">浏览微信里的会话和消息</string>
+    <string name="menu_prompts">提示词</string>
+    <string name="menu_prompts_hint">设定助手的角色、语气和回复原则</string>
+    <string name="menu_keywords">关键词资料</string>
+    <string name="menu_keywords_hint">对方提到某些词时，把对应说明带给助手</string>
+    <string name="keywords_page_hint">一份说明可以对应多个关键词，用顿号、逗号或换行分开，例如：时间、地点、安排。对方最近连续发言里命中任意一个，就会把这份说明发给模型；可同时命中多份。</string>
+    <string name="keywords_empty">还没有资料，点右上角添加</string>
+    <string name="keywords_key_hint">关键词，多个用顿号或逗号分开</string>
+    <string name="keywords_data_hint">命中后附给助手的说明</string>
+    <string name="prompt_hint">例如：简洁、口语化，按对方的语言习惯回复</string>
+    <string name="menu_models">模型</string>
+    <string name="menu_models_hint">选择服务商、模型并填写接口密钥</string>
+    <string name="menu_logs">使用日志</string>
+    <string name="menu_logs_hint">查看每次发给模型的内容和回复</string>
+    <string name="menu_memory">记忆</string>
+    <string name="memory_hint">记录这个会话里已经掌握的背景，例如身份、称呼、近期约定。在微信里点 AI 时会带给模型。</string>
+    <string name="memory_input_hint">在这里输入该会话的记忆，留空即清除</string>
+    <string name="memory_mark">记</string>
+    <string name="menu_default_memory">默认记忆</string>
+    <string name="menu_default_memory_hint">新会话尚未单独记录时先用这份</string>
+    <string name="default_memory_hint">第一次打开某个会话，或第一次在该会话点 AI 时，会复制为该会话的记忆，之后可单独修改。留空则不预填。</string>
+    <string name="default_memory_input_hint">在这里输入默认记忆</string>
+</resources>
