@@ -6,7 +6,7 @@
 
 - 已 root 的 Android 设备（minSdk 26）
 - LSPosed（或兼容框架），模块作用域勾选微信 `com.tencent.mm`
-- 已登录的微信
+- 微信版本8.0.74
 - 模型 API Key（DeepSeek 或火山方舟，OpenAI 兼容接口）
 
 ## 使用
