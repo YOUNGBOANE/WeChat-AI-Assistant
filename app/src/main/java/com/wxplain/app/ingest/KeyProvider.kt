@@ -17,7 +17,8 @@ class KeyProvider : ContentProvider() {
         val hex = values?.getAsString("key")?.trim().orEmpty()
         if (hex.length < 4 || hex.length > 128) return null
         if (!hex.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) return null
-        KeyStore.save(ctx, hex)
+        val hash = values?.getAsString("hash")?.trim().orEmpty()
+        KeyStore.save(ctx, hex, hash = hash)
         return uri
     }
 

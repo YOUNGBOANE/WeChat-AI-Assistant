@@ -15,27 +15,25 @@ data class KeywordRule(
 object KeywordStore {
     private const val FILE = "keyword_rules.json"
 
-    @Synchronized
-    fun load(context: Context): List<KeywordRule> {
-        val file = File(context.filesDir, FILE)
-        if (!file.exists()) return emptyList()
-        return try {
-            val arr = JSONArray(file.readText())
-            (0 until arr.length()).map { i ->
-                val o = arr.getJSONObject(i)
-                KeywordRule(
-                    id = o.optString("id").ifBlank { UUID.randomUUID().toString() },
-                    keyword = o.optString("keyword"),
-                    data = o.optString("data"),
-                )
-            }
-        } catch (_: Exception) {
-            emptyList()
+    fun parse(raw: String): List<KeywordRule> = parseArray(JSONArray(raw))
+
+    fun parseArray(arr: JSONArray): List<KeywordRule> {
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val keyword = o.optString("keyword")
+            val data = o.optString("data")
+            if (keyword.isBlank() && data.isBlank()) return@mapNotNull null
+            KeywordRule(
+                id = o.optString("id").ifBlank { UUID.randomUUID().toString() },
+                keyword = keyword,
+                data = data,
+            )
         }
     }
 
-    @Synchronized
-    fun save(context: Context, rules: List<KeywordRule>) {
+    fun stringify(rules: List<KeywordRule>): String = toArray(rules).toString()
+
+    fun toArray(rules: List<KeywordRule>): JSONArray {
         val arr = JSONArray()
         for (r in rules) {
             arr.put(
@@ -45,7 +43,23 @@ object KeywordStore {
                     .put("data", r.data),
             )
         }
-        File(context.filesDir, FILE).writeText(arr.toString())
+        return arr
+    }
+
+    @Synchronized
+    fun load(context: Context): List<KeywordRule> {
+        val file = File(context.filesDir, FILE)
+        if (!file.exists()) return emptyList()
+        return try {
+            parse(file.readText())
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    @Synchronized
+    fun save(context: Context, rules: List<KeywordRule>) {
+        File(context.filesDir, FILE).writeText(stringify(rules))
     }
 
     fun tokens(raw: String): List<String> =

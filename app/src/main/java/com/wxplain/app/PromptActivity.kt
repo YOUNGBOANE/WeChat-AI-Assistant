@@ -36,6 +36,13 @@ class PromptActivity : AppCompatActivity() {
         setContentView(root)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (!::input.isInitialized) return
+        val stored = PromptStore.load(this)
+        if (input.text?.toString() != stored) input.setText(stored)
+    }
+
     override fun onPause() {
         super.onPause()
         PromptStore.save(this, input.text?.toString().orEmpty())

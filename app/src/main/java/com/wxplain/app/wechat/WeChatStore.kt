@@ -35,7 +35,10 @@ object WeChatStore {
             appendLine("  for d in \"\$base\"/*; do")
             appendLine("    db=\"\$d/EnMicroMsg.db\"")
             appendLine("    if [ -f \"\$db\" ]; then")
-            appendLine("      echo \"\$(basename \"\$d\")|\$d|\$(stat -c%s \"\$db\" 2>/dev/null || echo 0)\"")
+            appendLine("      sz=\$(stat -c%s \"\$db\" 2>/dev/null || echo 0)")
+            appendLine("      mt=\$(stat -c%Y \"\$db\" 2>/dev/null || echo 0)")
+            appendLine("      wt=\$(stat -c%Y \"\$db-wal\" 2>/dev/null || echo 0)")
+            appendLine("      echo \"\$(basename \"\$d\")|\$d|\$sz|\$mt|\$wt\"")
             appendLine("      found=1")
             appendLine("    fi")
             appendLine("  done")
@@ -54,12 +57,38 @@ object WeChatStore {
         return output.lines().mapNotNull { line ->
             val p = line.trim().split("|")
             if (p.size < 3 || p[0].length < 8) return@mapNotNull null
-            WxAccount(p[0], p[1], "${p[1]}/EnMicroMsg.db", p[2].toLongOrNull() ?: 0L)
+            WxAccount(
+                hash = p[0],
+                mmDir = p[1],
+                dbPath = "${p[1]}/EnMicroMsg.db",
+                dbSize = p[2].toLongOrNull() ?: 0L,
+                dbMtime = p.getOrNull(3)?.toLongOrNull() ?: 0L,
+                walMtime = p.getOrNull(4)?.toLongOrNull() ?: 0L,
+            )
         }
     }
 
-    fun primaryAccount(): WxAccount? =
-        findAccounts().maxWithOrNull(compareBy<WxAccount> { it.dbSize }.thenBy { it.hash })
+    fun pickAccount(accounts: List<WxAccount>, uinHash: String? = null): WxAccount? {
+        if (accounts.isEmpty()) return null
+        val want = uinHash?.trim()?.lowercase().orEmpty()
+        if (want.isNotEmpty()) {
+            accounts.firstOrNull { it.hash.equals(want, ignoreCase = true) }?.let { return it }
+        }
+        return accounts.maxWithOrNull(
+            compareBy<WxAccount> { maxOf(it.walMtime, it.dbMtime) }
+                .thenBy { it.dbSize }
+                .thenBy { it.hash },
+        )
+    }
+
+    fun primaryAccount(): WxAccount? = pickAccount(findAccounts(), currentUinHash())
+
+    fun currentUinHash(): String? {
+        val uin = parseUinFromPrefs(readUinPrefs()) ?: return null
+        return CipherKey.uinHash(uin)
+    }
+
+    fun parseUinFromPrefs(raw: String): String? = CipherKey.parseUinFromPrefs(raw)
 
     fun snapshotFile(context: Context): File = File(context.cacheDir, "live/EnMicroMsg.db")
 
@@ -214,27 +243,91 @@ object WeChatStore {
     }
 
     fun readKey(context: Context): String {
-        KeyStore.password(context)?.let { if (it.isNotBlank()) return it }
         val hex = readKeyHex(context) ?: return ""
         val pwd = CipherKey.hexToPassword(hex)
-        if (pwd.isNotBlank()) KeyStore.save(context, hex, pwd)
+        if (pwd.isBlank()) return ""
+        val live = readLiveCapturedKey()
+        val hash = live?.hash.orEmpty().ifBlank { KeyStore.accountHash(context).orEmpty() }
+        if (KeyStore.password(context) != pwd || KeyStore.hex(context) != hex) {
+            KeyStore.save(context, hex, pwd, hash)
+        }
         return pwd
     }
 
     fun readKeyHex(context: Context): String? {
-        KeyStore.hex(context)?.let { if (it.isNotBlank()) return it }
+        val live = readLiveCapturedKey()
+        if (live != null) return live.hex
+        return KeyStore.hex(context)?.takeIf { it.isNotBlank() }
+    }
+
+    fun candidatePasswords(context: Context): List<String> {
+        val hexes = CipherKey.mergeKeyHexes(
+            readLiveCapturedKey(),
+            KeyStore.hex(context),
+            readLiveKeyHistory(),
+        )
+        return hexes.map { CipherKey.hexToPassword(it) }.filter { it.isNotBlank() }.distinct()
+    }
+
+    fun rememberWorkingPassword(context: Context, password: String) {
+        if (password.isBlank()) return
+        if (KeyStore.password(context) == password) return
+        val hex = CipherKey.mergeKeyHexes(
+            readLiveCapturedKey(),
+            KeyStore.hex(context),
+            readLiveKeyHistory(),
+        ).firstOrNull { CipherKey.hexToPassword(it) == password } ?: return
+        val hash = readLiveCapturedKey()?.hash.orEmpty().ifBlank { KeyStore.accountHash(context).orEmpty() }
+        KeyStore.save(context, hex, password, hash)
+    }
+
+    fun isDecryptError(out: String): Boolean = CipherKey.isDecryptError(out)
+
+    fun readLiveCapturedKey(): CapturedKey? =
+        CipherKey.parseCapturedKey(catWeChatFiles(".wxplain_key"))
+
+    fun readLiveKeyHistory(): List<String> {
+        val hist = CipherKey.parseKeyHistory(catWeChatFiles(".wxplain_keys")).toMutableList()
+        CipherKey.parseCapturedKey(catWeChatFiles(".wechat_key"))?.hex?.let { hist += it }
+        return hist
+    }
+
+    private fun wechatFilesDir(): String {
         val pid = wechatPid()
-        val filesDir = if (!pid.isNullOrBlank()) {
+        return if (!pid.isNullOrBlank()) {
             "/proc/$pid/root/data/data/$PKG/files"
         } else {
             "/data/data/$PKG/files"
         }
-        val raw = Su.run("cat $filesDir/.wxplain_key $filesDir/.wechat_key 2>/dev/null")
-        return raw.lineSequence()
-            .map { it.trim() }
-            .firstOrNull { it.startsWith("key=") }
-            ?.removePrefix("key=")
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
+    }
+
+    private fun catWeChatFiles(name: String): String {
+        val dir = wechatFilesDir()
+        return Su.run("cat '$dir/$name' 2>/dev/null")
+    }
+
+    private fun readUinPrefs(): String {
+        val pid = wechatPid()
+        val bases = buildList {
+            if (!pid.isNullOrBlank()) add("/proc/$pid/root/data/data/$PKG")
+            add("/data_mirror/data_ce/null/0/$PKG")
+            add("/data/data/$PKG")
+        }
+        val files = listOf(
+            "shared_prefs/system_config_prefs.xml",
+            "shared_prefs/auth_info_key_prefs.xml",
+            "shared_prefs/com.tencent.mm_preferences.xml",
+        )
+        val cmd = buildString {
+            append("for b in")
+            for (b in bases) append(" '$b'")
+            appendLine("; do")
+            appendLine("  for f in ${files.joinToString(" ") { "'$it'" }}; do")
+            appendLine("    p=\"\$b/\$f\"")
+            appendLine("    if [ -f \"\$p\" ]; then cat \"\$p\"; echo; fi")
+            appendLine("  done")
+            appendLine("done")
+        }
+        return Su.run(cmd)
     }
 }

@@ -81,6 +81,9 @@ class MainActivity : AppCompatActivity() {
         body.addView(menuCard(getString(R.string.menu_keywords), getString(R.string.menu_keywords_hint)) {
             startActivity(Intent(this, KeywordActivity::class.java))
         })
+        body.addView(menuCard(getString(R.string.menu_backup), getString(R.string.menu_backup_hint)) {
+            startActivity(Intent(this, ConfigActivity::class.java))
+        })
         body.addView(menuCard(getString(R.string.menu_models), getString(R.string.menu_models_hint)) {
             startActivity(Intent(this, ModelActivity::class.java))
         })

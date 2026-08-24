@@ -12,11 +12,17 @@ object KeyStore {
         prefs = context.applicationContext.getSharedPreferences(PREF, Context.MODE_PRIVATE)
     }
 
-    fun save(context: Context, hex: String, password: String = CipherKey.hexToPassword(hex)) {
+    fun save(
+        context: Context,
+        hex: String,
+        password: String = CipherKey.hexToPassword(hex),
+        hash: String = "",
+    ) {
         val p = prefs ?: context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         p.edit()
             .putString("hex", hex)
             .putString("password", password)
+            .putString("hash", hash)
             .putLong("time", System.currentTimeMillis())
             .apply()
     }
@@ -29,5 +35,15 @@ object KeyStore {
     fun hex(context: Context): String? {
         val p = prefs ?: context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         return p.getString("hex", null)
+    }
+
+    fun accountHash(context: Context): String? {
+        val p = prefs ?: context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+        return p.getString("hash", null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun clear(context: Context) {
+        val p = prefs ?: context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+        p.edit().clear().apply()
     }
 }

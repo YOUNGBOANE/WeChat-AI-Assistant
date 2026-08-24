@@ -40,8 +40,11 @@ object SqlCipherCli {
             })
             val cmd =
                 "LD_PRELOAD='$TMP/libz.so.1:$TMP/libcrypto.so.3:$TMP/libedit.so:$TMP/libncursesw.so.6' " +
-                    "$TMP/sqlcipher '$dbPath' < '${script.absolutePath}' 2>/dev/null"
-            return Su.run(cmd)
+                    "$TMP/sqlcipher '$dbPath' < '${script.absolutePath}'"
+            val r = Su.exec(cmd)
+            if (r.out.isNotBlank()) return r.out
+            if (CipherKey.isDecryptError(r.err)) return r.err
+            return r.out
         } finally {
             script.delete()
         }

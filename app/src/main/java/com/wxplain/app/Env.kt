@@ -20,7 +20,7 @@ data class EnvStatus(
         if (!root) add("没有超级用户权限，请在授权管理里打开本应用")
         if (!wechatRunning) add("没有发现正在运行的微信，先打开微信再下拉刷新")
         if (!moduleInLog) add("模块还没挂上微信，请在框架里启用本应用、勾选微信后重开微信")
-        if (key.isBlank()) add("还没拿到解密口令，重开一次微信后再试")
+        if (key.isBlank()) add("还没拿到解密口令，完全退出并重开一次微信后再试")
         if (dbSize <= 0) add("没有定位到会话数据文件")
     }
 }

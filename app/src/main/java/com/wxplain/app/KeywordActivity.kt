@@ -56,6 +56,16 @@ class KeywordActivity : AppCompatActivity() {
         render()
     }
 
+    override fun onResume() {
+        super.onResume()
+        val latest = KeywordStore.load(this)
+        if (latest != rules) {
+            rules.clear()
+            rules.addAll(latest)
+            render()
+        }
+    }
+
     private fun render() {
         list.removeAllViews()
         if (rules.isEmpty()) {

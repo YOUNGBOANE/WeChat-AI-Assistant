@@ -5,6 +5,8 @@ data class WxAccount(
     val mmDir: String,
     val dbPath: String,
     val dbSize: Long,
+    val dbMtime: Long = 0L,
+    val walMtime: Long = 0L,
 )
 
 data class Conversation(

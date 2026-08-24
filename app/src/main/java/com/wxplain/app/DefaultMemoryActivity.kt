@@ -43,6 +43,13 @@ class DefaultMemoryActivity : AppCompatActivity() {
         setContentView(root)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (!::input.isInitialized) return
+        val stored = MemoryStore.defaultText(this)
+        if (input.text?.toString() != stored) input.setText(stored)
+    }
+
     override fun onPause() {
         super.onPause()
         MemoryStore.saveDefault(this, input.text?.toString().orEmpty())

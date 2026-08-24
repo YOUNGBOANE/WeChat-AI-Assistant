@@ -52,6 +52,11 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".ConfigActivity"
+            android:exported="false"
+            android:label="@string/menu_backup" />
+
+        <activity
             android:name=".ModelActivity"
             android:exported="false"
             android:label="@string/menu_models"

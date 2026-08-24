@@ -25,4 +25,12 @@
     <string name="menu_default_memory_hint">新会话尚未单独记录时先用这份</string>
     <string name="default_memory_hint">第一次打开某个会话，或第一次在该会话点 AI 时，会复制为该会话的记忆，之后可单独修改。留空则不预填。</string>
     <string name="default_memory_input_hint">在这里输入默认记忆</string>
+    <string name="menu_backup">导入导出</string>
+    <string name="menu_backup_hint">备份或恢复提示词、默认记忆和关键词资料</string>
+    <string name="backup_page_hint">导出为 JSON 文件，可拷到另一台设备再导入。导入只会改这三项，不会动模型密钥、会话记忆或聊天记录。</string>
+    <string name="backup_export">导出配置</string>
+    <string name="backup_export_hint">保存提示词、默认记忆和关键词资料</string>
+    <string name="backup_import">导入配置</string>
+    <string name="backup_import_hint">从文件恢复，覆盖当前对应项</string>
+    <string name="backup_import_confirm">将覆盖当前配置：</string>
 </resources>

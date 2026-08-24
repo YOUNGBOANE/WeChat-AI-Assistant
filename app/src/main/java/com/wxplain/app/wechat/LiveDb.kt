@@ -3,24 +3,19 @@ package com.wxplain.app.wechat
 import android.content.Context
 import com.wxplain.app.MemoryStore
 import com.wxplain.app.PendingConfirmStore
+import com.wxplain.app.ingest.KeyStore
 
 object LiveDb {
     fun conversationUsernames(context: Context): Set<String>? {
-        val dbFile = WeChatStore.snapshotFile(context)
-        if (!dbFile.exists()) return null
-        val key = WeChatStore.readKey(context)
-        if (key.isBlank()) return null
-        val out = SqlCipherCli.query(
-            dbFile.absolutePath,
-            key,
-            "SELECT username FROM rconversation;",
-        )
-        if (out.contains("file is not a database", ignoreCase = true)) return null
-        if (out.lineSequence().any { it.trim().startsWith("Error") }) return null
-        return out.lines()
-            .map { it.trim() }
-            .filter { it.isNotEmpty() && !it.startsWith("ok") && !it.startsWith("Error") }
-            .toSet()
+        if (!WeChatStore.snapshotFile(context).exists()) return null
+        return try {
+            query(context, "SELECT username FROM rconversation;").lines()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && !it.startsWith("ok") && !it.startsWith("Error") }
+                .toSet()
+        } catch (_: Exception) {
+            null
+        }
     }
 
     fun pruneDeletedChats(context: Context): Set<String>? {
@@ -31,10 +26,6 @@ object LiveDb {
     }
 
     fun conversations(context: Context): List<Conversation> {
-        val dbFile = WeChatStore.snapshotFile(context)
-        if (!dbFile.exists()) error("请先刷新会话")
-        val key = WeChatStore.readKey(context)
-        if (key.isBlank()) error("尚未捕获密钥：请在 LSPosed 启用本模块并重启微信")
         val sql = """
             SELECT c.username,
                    IFNULL(NULLIF(r.conRemark,''), IFNULL(r.nickname, c.username)),
@@ -45,7 +36,7 @@ object LiveDb {
             ORDER BY c.conversationTime DESC
             LIMIT 300;
         """.trimIndent()
-        val out = SqlCipherCli.query(dbFile.absolutePath, key, sql)
+        val out = query(context, sql)
         val list = ArrayList<Conversation>()
         for (line in out.lines()) {
             val p = line.split("|")
@@ -63,17 +54,10 @@ object LiveDb {
             }
             list += Conversation(user, nick, unread, time, kind)
         }
-        if (list.isEmpty() && out.contains("file is not a database", ignoreCase = true)) {
-            error("数据库无法解密，请确认已重启微信以捕获密钥")
-        }
         return list
     }
 
     fun messages(context: Context, talker: String, limit: Int = 400): List<ChatMessage> {
-        val dbFile = WeChatStore.snapshotFile(context)
-        if (!dbFile.exists()) error("请先刷新会话")
-        val key = WeChatStore.readKey(context)
-        if (key.isBlank()) error("尚未捕获密钥")
         val safe = talker.replace("'", "''")
         val sql = """
             SELECT msgId, msgSvrId, type,
@@ -84,7 +68,7 @@ object LiveDb {
             ORDER BY createTime DESC
             LIMIT $limit;
         """.trimIndent()
-        val out = SqlCipherCli.query(dbFile.absolutePath, key, sql)
+        val out = query(context, sql)
         val list = ArrayList<ChatMessage>()
         for (line in out.lines()) {
             val p = line.split("|")
@@ -109,22 +93,26 @@ object LiveDb {
             SELECT IFNULL(NULLIF(conRemark,''), IFNULL(nickname, username))
             FROM rcontact WHERE username = '$safe' LIMIT 1;
         """.trimIndent()
-        val dbFile = WeChatStore.snapshotFile(context)
-        if (!dbFile.exists()) return username
-        val key = WeChatStore.readKey(context)
-        if (key.isBlank()) return username
-        return SqlCipherCli.query(dbFile.absolutePath, key, sql)
-            .lines()
-            .map { it.trim() }
-            .firstOrNull { it.isNotEmpty() && !it.startsWith("ok") && !it.startsWith("Error") }
-            ?: username
+        return try {
+            query(context, sql)
+                .lines()
+                .map { it.trim() }
+                .firstOrNull { it.isNotEmpty() && !it.startsWith("ok") && !it.startsWith("Error") }
+                ?: username
+        } catch (_: Exception) {
+            username
+        }
     }
 
     fun resolveTalker(context: Context, raw: String): String {
         val id = raw.trim()
         if (id.isEmpty()) return ""
         if (id.startsWith("wxid_") || id.endsWith("@chatroom") || id.startsWith("gh_")) return id
-        val byUser = messages(context, id, 1)
+        val byUser = try {
+            messages(context, id, 1)
+        } catch (_: Exception) {
+            emptyList()
+        }
         if (byUser.isNotEmpty()) return id
         val safe = id.replace("'", "''")
         val sql = """
@@ -132,15 +120,15 @@ object LiveDb {
             WHERE username = '$safe' OR nickname = '$safe' OR conRemark = '$safe'
             LIMIT 1;
         """.trimIndent()
-        val dbFile = WeChatStore.snapshotFile(context)
-        if (!dbFile.exists()) return id
-        val key = WeChatStore.readKey(context)
-        if (key.isBlank()) return id
-        return SqlCipherCli.query(dbFile.absolutePath, key, sql)
-            .lines()
-            .map { it.trim() }
-            .firstOrNull { it.isNotEmpty() && !it.startsWith("ok") && !it.startsWith("Error") }
-            ?: id
+        return try {
+            query(context, sql)
+                .lines()
+                .map { it.trim() }
+                .firstOrNull { it.isNotEmpty() && !it.startsWith("ok") && !it.startsWith("Error") }
+                ?: id
+        } catch (_: Exception) {
+            id
+        }
     }
 
     fun transcript(context: Context, talker: String, limit: Int = 80): String {
@@ -226,4 +214,19 @@ object LiveDb {
     }
 
     private fun displayBody(m: ChatMessage): String? = ChatSlice.body(m)
+
+    private fun query(context: Context, sql: String): String {
+        val dbFile = WeChatStore.snapshotFile(context)
+        if (!dbFile.exists()) error("请先刷新会话")
+        val keys = WeChatStore.candidatePasswords(context)
+        if (keys.isEmpty()) error("尚未捕获密钥：请在 LSPosed 启用本模块并完全退出后重开微信")
+        for (key in keys) {
+            val out = SqlCipherCli.query(dbFile.absolutePath, key, sql)
+            if (WeChatStore.isDecryptError(out)) continue
+            WeChatStore.rememberWorkingPassword(context, key)
+            return out
+        }
+        KeyStore.clear(context)
+        error("数据库无法解密，可能已换号。请完全退出并重开微信后再刷新")
+    }
 }
