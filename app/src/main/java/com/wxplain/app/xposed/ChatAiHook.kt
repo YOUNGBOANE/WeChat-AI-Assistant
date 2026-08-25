@@ -32,6 +32,7 @@ import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
 import com.wxplain.app.ai.AiEnvelope
+import com.wxplain.app.ingest.LocalIpc
 import com.wxplain.app.wechat.ChatSlice
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
@@ -466,8 +467,7 @@ object ChatAiHook {
             putString("chat", fallback)
             if (!choice.isNullOrBlank()) putString("choice", choice)
         }
-        val out = activity.contentResolver.call(Uri.parse(PROVIDER), "complete", null, extras)
-            ?: error("助手没有响应，先打开一次 Wechat AI Assistant")
+        val out = assistantCall(activity, "complete", extras)
         val err = out.getString("error")
         if (!err.isNullOrBlank()) error(err)
         val type = out.getString("type").orEmpty().ifBlank { "reply" }
@@ -756,7 +756,7 @@ object ChatAiHook {
                 putString("question", pendingQuestion)
                 putString("draft", pendingDraft)
             }
-            ctx.contentResolver.call(Uri.parse(PROVIDER), "pending_save", null, extras)
+            assistantCall(ctx, "pending_save", extras, timeoutMs = 5_000)
         } catch (t: Throwable) {
             XposedBridge.log("$TAG persist pending failed: ${t.message}")
         }
@@ -765,7 +765,7 @@ object ChatAiHook {
     private fun loadPendingRemote(ctx: Context, talker: String): Pair<String, String>? {
         return try {
             val extras = Bundle().apply { putString("talker", talker) }
-            val out = ctx.contentResolver.call(Uri.parse(PROVIDER), "pending_get", null, extras) ?: return null
+            val out = assistantCall(ctx, "pending_get", extras, timeoutMs = 5_000)
             val q = out.getString("question")?.trim().orEmpty()
             if (q.isEmpty()) null else q to out.getString("draft").orEmpty()
         } catch (t: Throwable) {
@@ -777,7 +777,7 @@ object ChatAiHook {
     private fun clearPendingRemote(ctx: Context, talker: String) {
         try {
             val extras = Bundle().apply { putString("talker", talker) }
-            ctx.contentResolver.call(Uri.parse(PROVIDER), "pending_clear", null, extras)
+            assistantCall(ctx, "pending_clear", extras, timeoutMs = 5_000)
         } catch (t: Throwable) {
             XposedBridge.log("$TAG clear pending failed: ${t.message}")
         }
@@ -1015,6 +1015,21 @@ object ChatAiHook {
         (XposedHelpers.callMethod(obj, name) as? Number)?.toInt()
     } catch (_: Throwable) {
         null
+    }
+
+    private fun assistantCall(
+        ctx: Context,
+        method: String,
+        extras: Bundle,
+        timeoutMs: Int = 90_000,
+    ): Bundle {
+        try {
+            val out = ctx.contentResolver.call(Uri.parse(PROVIDER), method, null, extras)
+            if (out != null) return out
+        } catch (t: Throwable) {
+            XposedBridge.log("$TAG provider $method: ${t.message}")
+        }
+        return LocalIpc.call(method, extras, timeoutMs)
     }
 
     private fun toast(ctx: Context, msg: String) {

@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
+import android.os.Bundle
+import com.wxplain.app.ingest.LocalIpc
 import com.wxplain.app.wechat.CipherKey
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
@@ -266,15 +268,28 @@ object KeyHook {
             } catch (t: Throwable) {
                 XposedBridge.log("$TAG write file failed: ${t.message}")
             }
-            try {
-                val values = ContentValues().apply {
-                    put("key", hex)
-                    if (hash.isNotBlank()) put("hash", hash)
-                    if (path.isNotBlank()) put("path", path)
-                }
+            val values = ContentValues().apply {
+                put("key", hex)
+                if (hash.isNotBlank()) put("hash", hash)
+                if (path.isNotBlank()) put("path", path)
+            }
+            val inserted = try {
                 ctx.contentResolver.insert(provider, values)
             } catch (t: Throwable) {
                 XposedBridge.log("$TAG provider failed: ${t.message}")
+                null
+            }
+            if (inserted == null) {
+                try {
+                    val extras = Bundle().apply {
+                        putString("key", hex)
+                        if (hash.isNotBlank()) putString("hash", hash)
+                        if (path.isNotBlank()) putString("path", path)
+                    }
+                    LocalIpc.call("key_save", extras, readTimeoutMs = 5_000)
+                } catch (t: Throwable) {
+                    XposedBridge.log("$TAG ipc key_save failed: ${t.message}")
+                }
             }
         } else {
             XposedBridge.log("$TAG persist without context len=${hex.length}")
