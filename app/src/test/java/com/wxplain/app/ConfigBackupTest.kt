@@ -10,7 +10,6 @@ class ConfigBackupTest {
         val text = ConfigBackup.summary(
             AssistantConfig(
                 prompt = "abc",
-                defaultMemory = "  ",
                 keywords = listOf(
                     KeywordRule("1", "a", "b"),
                     KeywordRule("2", "c", "d"),
@@ -18,7 +17,6 @@ class ConfigBackupTest {
             ),
         )
         assertTrue(text.contains("提示词：3 字"))
-        assertTrue(text.contains("默认记忆：空白"))
         assertTrue(text.contains("关键词资料：2 条"))
     }
 
@@ -28,7 +26,6 @@ class ConfigBackupTest {
             AssistantConfig(
                 prompt = "hi",
                 hasPrompt = true,
-                hasDefaultMemory = false,
                 hasKeywords = false,
             ),
         )

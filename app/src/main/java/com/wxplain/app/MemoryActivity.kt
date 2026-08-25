@@ -47,7 +47,7 @@ class MemoryActivity : AppCompatActivity() {
             setPadding(dp(16), dp(12), dp(16), dp(16))
             textSize = 16f
             background = null
-            setText(MemoryStore.ensureInitial(this@MemoryActivity, talker, nick))
+            setText(MemoryStore.text(this@MemoryActivity, talker))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,

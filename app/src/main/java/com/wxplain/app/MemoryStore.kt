@@ -15,8 +15,6 @@ data class ChatMemory(
 
 object MemoryStore {
     private const val FILE = "chat_memories.json"
-    private const val DEFAULT_PREF = "memory_default"
-    private const val DEFAULT_KEY = "text"
 
     fun parse(raw: String): List<ChatMemory> {
         val arr = JSONArray(raw)
@@ -123,41 +121,6 @@ object MemoryStore {
     fun applyEnvelope(context: Context, talker: String, nick: String, envelope: AiEnvelope) {
         if (talker.isBlank()) return
         save(context, applyMemory(load(context), talker, nick, envelope))
-    }
-
-    fun defaultText(context: Context): String =
-        context.getSharedPreferences(DEFAULT_PREF, Context.MODE_PRIVATE)
-            .getString(DEFAULT_KEY, "")
-            .orEmpty()
-
-    fun saveDefault(context: Context, text: String) {
-        context.getSharedPreferences(DEFAULT_PREF, Context.MODE_PRIVATE)
-            .edit()
-            .putString(DEFAULT_KEY, text)
-            .apply()
-    }
-
-    fun ensureInitial(
-        list: List<ChatMemory>,
-        talker: String,
-        nick: String,
-        defaultText: String,
-        now: Long = System.currentTimeMillis(),
-    ): List<ChatMemory> {
-        val id = talker.trim()
-        if (id.isEmpty()) return list
-        if (list.any { it.talker == id }) return list
-        val def = defaultText.trim()
-        if (def.isEmpty()) return list
-        return upsert(list, id, nick, def, now)
-    }
-
-    fun ensureInitial(context: Context, talker: String, nick: String): String {
-        val id = talker.trim()
-        if (id.isEmpty()) return ""
-        val next = ensureInitial(load(context), id, nick, defaultText(context))
-        save(context, next)
-        return textOf(next, id)
     }
 
     fun pruneMissing(list: List<ChatMemory>, liveTalkers: Set<String>): List<ChatMemory> =

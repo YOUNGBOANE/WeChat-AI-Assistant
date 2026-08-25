@@ -5,10 +5,8 @@ import org.json.JSONObject
 
 data class AssistantConfig(
     val prompt: String = "",
-    val defaultMemory: String = "",
     val keywords: List<KeywordRule> = emptyList(),
     val hasPrompt: Boolean = true,
-    val hasDefaultMemory: Boolean = true,
     val hasKeywords: Boolean = true,
 )
 
@@ -19,7 +17,6 @@ object ConfigBackup {
 
     fun snapshot(context: Context): AssistantConfig = AssistantConfig(
         prompt = PromptStore.load(context),
-        defaultMemory = MemoryStore.defaultText(context),
         keywords = KeywordStore.load(context),
     )
 
@@ -29,7 +26,6 @@ object ConfigBackup {
             .put("kind", KIND)
             .put("version", VERSION)
             .put("prompt", config.prompt)
-            .put("default_memory", config.defaultMemory)
             .put("keywords", KeywordStore.toArray(config.keywords))
         return obj.toString(2)
     }
@@ -50,10 +46,9 @@ object ConfigBackup {
         val ver = obj.optInt("version", 1)
         if (ver > VERSION) error("配置文件版本过新，请先升级应用")
         val hasPrompt = obj.has("prompt")
-        val hasMemory = obj.has("default_memory")
         val hasKeywords = obj.has("keywords")
-        if (!hasPrompt && !hasMemory && !hasKeywords) {
-            error("文件里没有提示词、默认记忆或关键词资料")
+        if (!hasPrompt && !hasKeywords) {
+            error("文件里没有提示词或关键词资料")
         }
         val keywords = if (hasKeywords) {
             val arr = obj.optJSONArray("keywords") ?: error("关键词资料格式不对")
@@ -63,17 +58,14 @@ object ConfigBackup {
         }
         return AssistantConfig(
             prompt = obj.optString("prompt"),
-            defaultMemory = obj.optString("default_memory"),
             keywords = keywords,
             hasPrompt = hasPrompt,
-            hasDefaultMemory = hasMemory,
             hasKeywords = hasKeywords,
         )
     }
 
     fun apply(context: Context, config: AssistantConfig) {
         if (config.hasPrompt) PromptStore.save(context, config.prompt)
-        if (config.hasDefaultMemory) MemoryStore.saveDefault(context, config.defaultMemory)
         if (config.hasKeywords) KeywordStore.save(context, config.keywords)
     }
 
@@ -81,10 +73,6 @@ object ConfigBackup {
         if (config.hasPrompt) {
             val n = config.prompt.trim().length
             add(if (n == 0) "提示词：空白" else "提示词：$n 字")
-        }
-        if (config.hasDefaultMemory) {
-            val n = config.defaultMemory.trim().length
-            add(if (n == 0) "默认记忆：空白" else "默认记忆：$n 字")
         }
         if (config.hasKeywords) {
             add("关键词资料：${config.keywords.size} 条")

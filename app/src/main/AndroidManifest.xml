@@ -73,12 +73,6 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
-            android:name=".DefaultMemoryActivity"
-            android:exported="false"
-            android:label="@string/menu_default_memory"
-            android:windowSoftInputMode="adjustResize" />
-
-        <activity
             android:name=".LogActivity"
             android:exported="false"
             android:label="@string/menu_logs" />

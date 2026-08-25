@@ -11,6 +11,15 @@ data class AiEnvelope(
     val memoryUpdated: Boolean get() = context.isNotBlank() || contextUpdate.isNotBlank()
 
     companion object {
+        const val INIT_FORMAT_SPEC = """输出必须只使用下面的标签，不要输出标签以外的解释，不要输出 <reply> 或 <option>。
+
+<context>该会话的全部已知信息</context>
+
+规则：
+1. 只输出一个 <context>。根据最近对话整理该会话背景：身份、称呼、关系、约定、偏好、正在进行的事项。
+2. 只写能确定的事实，不要编造，不要记无意义闲聊。
+3. 不要输出准备发送的回复。"""
+
         const val FORMAT_SPEC = """输出必须使用下面的标签，不要输出标签以外的解释。
 
 <reply>填进微信输入框、准备发出去的正文</reply>
@@ -21,7 +30,7 @@ data class AiEnvelope(
 规则：
 1. 每一条输出必须有 <reply> 或 <option> 二者之一，不能都没有，也不要同时使用。
 2. 能确定回复时只用 <reply>。遇到需要操作者本人确认或补充的信息时不要用 <reply>，改为一个 <option>，里面只写问句。例如：对方说的那个时间是哪天？这件事是否已经确认？前端会把问题交给操作者填写。不要自己列选项，也不要编造需要本人才能确定的事实。
-3. <context> 与 <context_update> 最多只用其中一个，禁止同时出现。要整份重写该会话已知信息时用 <context>（覆盖全部旧内容）；只是补一条新事实时用 <context_update>（追加到末尾）。没有必要更新记忆时两个都不要输出。
+3. 最近对话里如果出现已知信息尚未掌握的内容，必须及时用 <context> 或 <context_update> 更新记忆，不要等下一轮。只补一条新事实时用 <context_update>（追加到末尾）；要整份重写该会话已知信息时用 <context>（覆盖全部旧内容）。二者最多只用其中一个，禁止同时出现。没有新事实时两个都不要输出。
 4. <reply> 里只放准备发送的话。
 5. 已知信息是该会话背景；最近对话只用于接当前这一轮，不要根据过早的闲聊展开。"""
 

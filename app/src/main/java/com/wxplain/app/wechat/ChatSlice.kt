@@ -1,20 +1,35 @@
 package com.wxplain.app.wechat
 
 /**
- * 发给模型的对话切片：背景走已知信息，这里只保留最近几句用来接话。
+ * 发给模型的对话切片。
+ * 有记忆或可用记录不超过 [INIT_THRESHOLD] 条：最近 [LINES_REPLY] 条、最多 [CHARS_REPLY] 字，用来接话。
+ * 无记忆且超过阈值：最近 [LINES_INIT] 条、最多 [CHARS_INIT] 字，只用来初始化 <context>。
  */
 object ChatSlice {
-    const val FETCH = 24
-    const val LINES_WITH_MEMORY = 8
-    const val LINES_WITHOUT_MEMORY = 12
-    const val CHARS_WITH_MEMORY = 600
-    const val CHARS_WITHOUT_MEMORY = 1000
+    const val INIT_THRESHOLD = 10
+    const val FETCH_REPLY = 10
+    const val FETCH_INIT = 100
+    const val LINES_REPLY = 10
+    const val LINES_INIT = 100
+    const val CHARS_REPLY = 800
+    const val CHARS_INIT = 4000
     const val LINE_MAX = 72
 
-    fun compact(lines: List<String>, hasMemory: Boolean): String {
-        val maxLines = if (hasMemory) LINES_WITH_MEMORY else LINES_WITHOUT_MEMORY
-        val maxChars = if (hasMemory) CHARS_WITH_MEMORY else CHARS_WITHOUT_MEMORY
-        val cleaned = lines.map { clipLine(stripNoise(it)) }.filter { it.isNotEmpty() }
+    fun needsMemoryInit(hasMemory: Boolean, lineCount: Int): Boolean =
+        !hasMemory && lineCount > INIT_THRESHOLD
+
+    fun prepare(lines: List<String>): List<String> =
+        lines.map { clipLine(stripNoise(it)) }.filter { it.isNotEmpty() }
+
+    fun lines(msgs: List<ChatMessage>): List<String> =
+        prepare(msgs.asReversed().mapNotNull { line(it) })
+
+    fun compactReply(lines: List<String>): String = compact(lines, LINES_REPLY, CHARS_REPLY)
+
+    fun compactInit(lines: List<String>): String = compact(lines, LINES_INIT, CHARS_INIT)
+
+    fun compact(lines: List<String>, maxLines: Int, maxChars: Int): String {
+        val cleaned = prepare(lines)
         if (cleaned.isEmpty()) return ""
         val tail = cleaned.takeLast(maxLines)
         var start = 0

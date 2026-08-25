@@ -75,9 +75,6 @@ class MainActivity : AppCompatActivity() {
         body.addView(menuCard(getString(R.string.menu_prompts), getString(R.string.menu_prompts_hint)) {
             startActivity(Intent(this, PromptActivity::class.java))
         })
-        body.addView(menuCard(getString(R.string.menu_default_memory), getString(R.string.menu_default_memory_hint)) {
-            startActivity(Intent(this, DefaultMemoryActivity::class.java))
-        })
         body.addView(menuCard(getString(R.string.menu_keywords), getString(R.string.menu_keywords_hint)) {
             startActivity(Intent(this, KeywordActivity::class.java))
         })

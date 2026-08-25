@@ -56,26 +56,45 @@ class AssistantProvider : ContentProvider() {
             if (talker.isNotBlank()) {
                 nick = LiveDb.contactName(ctx, talker)
             }
-            val memory = if (talker.isNotBlank() && (liveTalkers == null || talker in liveTalkers)) {
-                MemoryStore.ensureInitial(ctx, talker, nick)
+            var memory = if (talker.isNotBlank() && (liveTalkers == null || talker in liveTalkers)) {
+                MemoryStore.text(ctx, talker)
             } else {
                 ""
             }
-            val hasMemory = memory.isNotBlank()
-            val msgs = if (talker.isNotBlank()) LiveDb.messages(ctx, talker, ChatSlice.FETCH) else emptyList()
-            chat = if (msgs.isNotEmpty()) {
-                LiveDb.recentFromMessages(msgs, hasMemory)
+            val fetch = if (memory.isNotBlank()) ChatSlice.FETCH_REPLY else ChatSlice.FETCH_INIT
+            val msgs = if (talker.isNotBlank()) LiveDb.messages(ctx, talker, fetch) else emptyList()
+            val lines = if (msgs.isNotEmpty()) {
+                ChatSlice.lines(msgs)
             } else {
-                ChatSlice.compact(fallback.lines(), hasMemory)
+                ChatSlice.prepare(fallback.lines())
             }
             val peer = if (msgs.isNotEmpty()) {
                 LiveDb.lastPeerBurstFromMessages(msgs)
             } else {
-                LiveDb.lastPeerBurstFromTranscript(chat)
+                LiveDb.lastPeerBurstFromTranscript(lines.joinToString("\n"))
             }
-            val hits = KeywordStore.match(KeywordStore.load(ctx), peer)
-            val extra = KeywordStore.pack(hits)
-            val result = AiClient.complete(ModelStore.load(ctx), prompt, chat, extra, memory, choice)
+            val extra = KeywordStore.pack(KeywordStore.match(KeywordStore.load(ctx), peer))
+            val config = ModelStore.load(ctx)
+            var memoryUpdated = false
+            if (choice.isBlank() && talker.isNotBlank() &&
+                ChatSlice.needsMemoryInit(memory.isNotBlank(), lines.size)
+            ) {
+                val initChat = ChatSlice.compactInit(lines)
+                val initResult = AiClient.complete(
+                    config, prompt, initChat, extra, memory = "", choice = "", initMemory = true,
+                )
+                val initEnvelope = AiEnvelope.parse(initResult.reply)
+                if (initEnvelope.context.isBlank() && initEnvelope.contextUpdate.isBlank()) {
+                    error("模型没有返回 <context>")
+                }
+                MemoryStore.applyEnvelope(ctx, talker, nick, initEnvelope)
+                memory = MemoryStore.text(ctx, talker)
+                if (memory.isBlank()) error("记忆初始化失败")
+                memoryUpdated = true
+                logUsage(ctx, nick, initResult.sent, initResult.reply, "")
+            }
+            chat = ChatSlice.compactReply(lines)
+            val result = AiClient.complete(config, prompt, chat, extra, memory, choice)
             val envelope = AiEnvelope.parse(result.reply)
             if (!envelope.hasOptions && !envelope.hasReply) {
                 error("模型没有返回 <reply> 或 <option>")
@@ -86,33 +105,29 @@ class AssistantProvider : ContentProvider() {
                 else PendingConfirmStore.clear(ctx, talker)
             }
             fillResult(out, envelope)
-            UsageLogStore.add(
-                ctx,
-                UsageLog(
-                    time = System.currentTimeMillis(),
-                    nick = nick,
-                    sent = result.sent,
-                    reply = result.reply,
-                    error = "",
-                ),
-            )
+            if (memoryUpdated) out.putBoolean("memory_updated", true)
+            logUsage(ctx, nick, result.sent, result.reply, "")
             out.putInt("chat_chars", chat.length)
             out
         } catch (t: Throwable) {
             val msg = t.message ?: t.javaClass.simpleName
-            UsageLogStore.add(
-                ctx,
-                UsageLog(
-                    time = System.currentTimeMillis(),
-                    nick = nick,
-                    sent = "",
-                    reply = "",
-                    error = msg,
-                ),
-            )
+            logUsage(ctx, nick, "", "", msg)
             out.putString("error", msg)
             out
         }
+    }
+
+    private fun logUsage(ctx: android.content.Context, nick: String, sent: String, reply: String, error: String) {
+        UsageLogStore.add(
+            ctx,
+            UsageLog(
+                time = System.currentTimeMillis(),
+                nick = nick,
+                sent = sent,
+                reply = reply,
+                error = error,
+            ),
+        )
     }
 
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? = null

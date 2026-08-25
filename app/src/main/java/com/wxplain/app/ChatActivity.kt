@@ -40,7 +40,6 @@ class ChatActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         talker = intent.getStringExtra(EXTRA_TALKER).orEmpty()
         nick = intent.getStringExtra(EXTRA_NICK) ?: talker
-        if (talker.isNotBlank()) MemoryStore.ensureInitial(this, talker, nick)
 
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val toolbar = MaterialToolbar(this).apply {

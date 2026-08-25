@@ -137,16 +137,16 @@ object LiveDb {
         return msgs.mapNotNull { line(it) }.joinToString("\n")
     }
 
-    fun recentTranscript(context: Context, talker: String, hasMemory: Boolean): String =
-        recentFromMessages(messages(context, talker, ChatSlice.FETCH), hasMemory)
+    fun recentTranscript(context: Context, talker: String, maxLines: Int, maxChars: Int): String =
+        recentFromMessages(messages(context, talker, maxLines), maxLines, maxChars)
 
-    fun recentFromMessages(msgs: List<ChatMessage>, hasMemory: Boolean): String {
+    fun recentFromMessages(msgs: List<ChatMessage>, maxLines: Int, maxChars: Int): String {
         if (msgs.isEmpty()) return ""
-        return ChatSlice.compact(msgs.asReversed().mapNotNull { ChatSlice.line(it) }, hasMemory)
+        return ChatSlice.compact(ChatSlice.lines(msgs), maxLines, maxChars)
     }
 
     /** 对方最近一次连续发言（跳过末尾自己发的），按时间从早到晚。 */
-    fun lastPeerBurst(context: Context, talker: String, limit: Int = ChatSlice.FETCH): List<String> =
+    fun lastPeerBurst(context: Context, talker: String, limit: Int = ChatSlice.FETCH_REPLY): List<String> =
         lastPeerBurstFromMessages(messages(context, talker, limit))
 
     fun lastPeerBurstFromMessages(msgs: List<ChatMessage>): List<String> {

@@ -19,13 +19,14 @@ object AiClient {
         extra: String = "",
         memory: String = "",
         choice: String = "",
+        initMemory: Boolean = false,
     ): AiResult {
         val key = config.apiKey.trim()
         if (key.isEmpty()) error("还没有填写 API Key，先在助手里打开 AI模型管理")
 
-        val user = buildUserContent(chatLog, extra, memory, choice)
+        val user = buildUserContent(chatLog, extra, memory, choice, initMemory)
         val messages = JSONArray()
-        val sys = buildSystemPrompt(systemPrompt)
+        val sys = buildSystemPrompt(systemPrompt, initMemory)
         messages.put(JSONObject().put("role", "system").put("content", sys))
         messages.put(JSONObject().put("role", "user").put("content", user))
         val sent = "$sys\n\n$user"
@@ -58,9 +59,10 @@ object AiClient {
         }
     }
 
-    fun buildSystemPrompt(userPrompt: String): String {
+    fun buildSystemPrompt(userPrompt: String, initMemory: Boolean = false): String {
+        val spec = if (initMemory) AiEnvelope.INIT_FORMAT_SPEC else AiEnvelope.FORMAT_SPEC
         val p = userPrompt.trim()
-        return if (p.isEmpty()) AiEnvelope.FORMAT_SPEC else "$p\n\n${AiEnvelope.FORMAT_SPEC}"
+        return if (p.isEmpty()) spec else "$p\n\n$spec"
     }
 
     fun buildUserContent(
@@ -68,10 +70,11 @@ object AiClient {
         extra: String = "",
         memory: String = "",
         choice: String = "",
+        initMemory: Boolean = false,
     ): String {
         return buildString {
             val mem = memory.trim()
-            if (mem.isNotEmpty()) {
+            if (!initMemory && mem.isNotEmpty()) {
                 append("关于这个会话的已知信息：\n")
                 append(mem)
                 append("\n\n")
@@ -85,14 +88,18 @@ object AiClient {
                 append("\n\n相关资料：\n")
                 append(extra.trim())
             }
+            if (initMemory) {
+                append("\n\n请只输出 <context>，整理该会话的已知信息。不要输出 <reply> 或 <option>。")
+                return@buildString
+            }
             if (choice.isNotBlank()) {
                 append("\n\n人工已填写：\n")
                 append(choice.trim())
                 append("\n请根据该答复继续。仍用标签格式；能确定就给 <reply>，还需要人工确认或填写再给新的 <option>。")
             }
             append("\n\n按指定标签格式输出。")
-            if (mem.isNotEmpty()) append("背景以已知信息为准，最近对话只用于接当前这一轮。")
-            else append("最近对话只用于接当前这一轮。")
+            if (mem.isNotEmpty()) append("背景以已知信息为准，最近对话只用于接当前这一轮。若出现已知信息未掌握的事实，同时用 <context> 或 <context_update> 更新记忆。")
+            else append("最近对话只用于接当前这一轮。若出现需要记住的新事实，用 <context> 或 <context_update> 写入记忆。")
         }
     }
 
